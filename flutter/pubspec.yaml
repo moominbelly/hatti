@@ -1,0 +1,22 @@
+name: hatti
+description: 매일 마음을 돌보는 감정 다마고치 (스캐폴드)
+publish_to: "none"
+version: 0.1.0
+
+environment:
+  sdk: ">=3.6.0 <4.0.0" # Color.withValues 사용 (Flutter 3.27+)
+
+dependencies:
+  flutter:
+    sdk: flutter
+  provider: ^6.1.2
+  google_fonts: ^6.2.1
+
+  # 나중에 백엔드 연결 시 주석 해제:
+  # supabase_flutter: ^2.5.0
+
+dev_dependencies:
+  flutter_lints: ^4.0.0
+
+flutter:
+  uses-material-design: true
