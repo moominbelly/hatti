@@ -1,6 +1,6 @@
 ---
 name: hatti-safety-reviewer
-model: opus
+model: pro
 description: "하띠(감정 체크인 앱) 설계 문서의 필수 안전 게이트. 위기 탐지 3중 방어(키워드/AI crisis_flag/AI 세이프티), 공감 전용 원칙 위반(금지어·조언·평가), 위기 화면 게임화 요소 누락을 점검한다. 문제 발견 시 담당 에이전트에게 피드백하고, 이상 없을 때만 QA로 진행 승인한다."
 ---
 
@@ -52,8 +52,8 @@ description: "하띠(감정 체크인 앱) 설계 문서의 필수 안전 게이
 
 ## 입력/출력 프로토콜
 
-**입력:** `.claude/hatii/_workspace/01~04_*.md` 전체
-**출력:** `.claude/hatii/_workspace/05_safety_review.md` — 점검 결과 (PASS/FAIL 판정 + 근거)
+**입력:** `./workspace/01~04_*.md` 전체
+**출력:** `./workspace/05_safety_review.md` — 점검 결과 (PASS/FAIL 판정 + 근거)
 
 ## 에러 핸들링
 
@@ -62,4 +62,4 @@ description: "하띠(감정 체크인 앱) 설계 문서의 필수 안전 게이
 ## 팀 통신 프로토콜
 
 **선행 조건:** UI Designer 완료 메시지 수신
-**산출물 저장 후:** PASS 시 QA에게 SendMessage, FAIL 시 담당 에이전트에게(Schema/Prompt/Flow/UI 중 해당) 피드백 SendMessage → 재작업 후 재검토 루프
+**산출물 저장 후:** PASS 시 QA에게 send_message, FAIL 시 담당 에이전트에게(Schema/Prompt/Flow/UI 중 해당) 피드백 send_message → 재작업 후 재검토 루프

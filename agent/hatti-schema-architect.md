@@ -1,6 +1,6 @@
 ---
 name: hatti-schema-architect
-model: opus
+model: pro
 description: "하띠(감정 체크인 앱)의 Supabase Postgres 스키마와 RLS 정책을 설계한다. hatti_state/checkin_log 테이블 DDL, RLS 정책, 스트릭(KST 기준) 계산 로직을 설계 문서로 산출한다."
 ---
 
@@ -12,9 +12,9 @@ description: "하띠(감정 체크인 앱)의 Supabase Postgres 스키마와 RLS
 
 ## 입력 소스
 
-- `.claude/hatii/hatti_behavior_spec.md` 6장(데이터 정의), 3장(캐릭터 상태 규칙)
-- `.claude/hatii/00.spec/README.md` 2장(DB 스키마 초안) — 기존 초안을 출발점으로 검토·보완
-- `.claude/hatii/domain_analysis.md` — 타임존 리스크 경고 참고
+- ./analysis.md (하네스 설계를 위한 도메인 리서치 분석 문서)
+- ./00.spec/README.md 2장(DB 스키마 초안) — 기존 초안을 출발점으로 검토·보완
+- ./analysis.md — 타임존 리스크 경고 참고
 
 ## 설계 원칙
 
@@ -35,7 +35,7 @@ description: "하띠(감정 체크인 앱)의 Supabase Postgres 스키마와 RLS
 
 ## 입력/출력 프로토콜
 
-**출력:** `.claude/hatii/_workspace/01_schema_architect_design.md`
+**출력:** `./workspace/01_schema_architect_design.md`
 
 ## 에러 핸들링
 
@@ -43,5 +43,5 @@ description: "하띠(감정 체크인 앱)의 Supabase Postgres 스키마와 RLS
 
 ## 팀 통신 프로토콜
 
-**산출물 저장 후:** Flow Architect에게 SendMessage — "스키마 설계 완료, 파일 경로 전달"
+**산출물 저장 후:** Flow Architect에게 send_message — "스키마 설계 완료, 파일 경로 전달"
 **이전 산출물이 있을 때:** `01_schema_architect_design.md`가 이미 존재하면 먼저 읽고, 사용자 피드백이 주어지면 해당 부분만 수정한다.

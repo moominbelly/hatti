@@ -46,14 +46,42 @@ class _CheckinFlowScreenState extends State<CheckinFlowScreen> {
     FocusScope.of(context).unfocus();
     setState(() => _phase = _Phase.analyzing);
     final s = context.read<HattiService>();
-    final res = await _api.checkin(_textCtrl.text,
-        period: s.period, intimacy: s.intimacy);
-    if (!mounted) return;
-    setState(() {
-      _result = res;
-      _showCard = false;
-      _phase = res.crisis ? _Phase.crisis : _Phase.response;
-    });
+    try {
+      final res = await _api.checkin(_textCtrl.text,
+          period: s.period, intimacy: s.intimacy);
+      if (!mounted) return;
+      setState(() {
+        _result = res;
+        _showCard = false;
+        _phase = res.crisis ? _Phase.crisis : _Phase.response;
+      });
+    } catch (e) {
+      if (!mounted) return;
+      // 분석중 상태 해제 및 입력창으로 복구 (텍스트는 컨트롤러에 유지됨)
+      setState(() => _phase = _Phase.prompt);
+      
+      // 에러 다이얼로그 띄우기
+      showDialog(
+        context: context,
+        builder: (context) => AlertDialog(
+          backgroundColor: HattiColors.paper,
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+          title: Text('앗, 오류가 발생했어요',
+              style: HattiText.body(size: 17, color: HattiColors.ink, w: FontWeight.bold)),
+          content: Text(
+            e.toString().replaceAll('Exception:', '').trim(),
+            style: HattiText.body(color: HattiColors.cardInk),
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.of(context).pop(),
+              child: Text('다시 해보기',
+                  style: HattiText.body(color: HattiColors.coral, w: FontWeight.bold)),
+            ),
+          ],
+        ),
+      );
+    }
   }
 
   void _finish() {
