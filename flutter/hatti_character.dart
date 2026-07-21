@@ -196,16 +196,13 @@ class _HattiPainter extends CustomPainter {
       ..strokeCap = StrokeCap.round;
     final path = Path();
     switch (mood) {
-      case Emotion.joy || Emotion.pride: // 활짝 웃음
+      case Emotion.joy:
         path.moveTo(67 * s, 96 * s);
         path.quadraticBezierTo(75 * s, 104 * s, 83 * s, 96 * s);
-      case Emotion.sadness || Emotion.guilt: // 시무룩
+      case Emotion.sadness:
         path.moveTo(68 * s, 100 * s);
         path.quadraticBezierTo(75 * s, 95 * s, 82 * s, 100 * s);
-      case Emotion.anger: // 굳은 일자 입
-        path.moveTo(69 * s, 99 * s);
-        path.lineTo(81 * s, 99 * s);
-      default: // calm·neutral·anxiety·fatigue·null → 잔잔한 미소
+      default:
         path.moveTo(69 * s, 98 * s);
         path.quadraticBezierTo(75 * s, 102 * s, 81 * s, 98 * s);
     }
