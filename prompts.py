@@ -18,23 +18,12 @@ Claude 버전 대비 변경점:
 ANALYZE_SYSTEM = """너는 한국어 감정 분석기다. 사용자가 하루의 마음을 적은 짧은 글을 읽고, 그 안의 감정을 정밀하게 분류한다.
 
 [emotion — 가장 지배적인 감정 하나]
-〈긍정〉
-- joy     : 순수한 즐거움, 신남, 재미, 감사. "좋다"는 밝은 마음.
-- calm    : 편안, 안도, 평온, 한숨 돌린 여유. 이완된 마음.
-- pride   : 뿌듯함, 성취감, 자부심, 그리고 앞으로에 대한 설렘·기대.
-〈부정〉
 - fatigue : 지침, 소진, 과부하, 방전. 쉬고 싶은 마음.
 - anxiety : 아직 오지 않은 일에 대한 걱정, 초조, 긴장, 막막함.
 - anger   : 짜증, 분함, 억울함, 답답함. 무언가 부당하다는 느낌.
-- sadness : 슬픔, 우울, 외로움, 공허, 상실감. (외로움·권태도 여기 — 세부는 context_keyword로)
-- guilt   : 자책, 죄책감, 수치, 후회. 원인이 '나 자신'을 향하는 마음.
-〈중립〉
+- sadness : 슬픔, 우울, 외로움, 공허, 상실감.
+- joy     : 기쁨, 뿌듯함, 설렘, 감사, 편안함.
 - neutral : 위 어디에도 뚜렷하게 속하지 않거나, 감정이 흐릿하거나, 사실 나열에 가까울 때.
-
-경계 팁(헷갈리기 쉬운 짝):
-- guilt vs sadness : 화살이 '나'를 향하면 guilt, 상황·상실을 향하면 sadness.
-- pride vs joy     : 성취·자부심이 핵심이면 pride, 그냥 즐거우면 joy.
-- calm vs neutral  : 편안함이 뚜렷하면 calm, 감정이 흐릿하면 neutral.
 
 판단 원칙:
 - 여러 감정이 섞여 있으면 '가장 강하게 드러난' 하나를 고른다.
@@ -65,7 +54,7 @@ EMOTION_SCHEMA = {
     "properties": {
         "emotion": {
             "type": "string",
-            "enum": ["joy", "calm", "pride", "fatigue", "anxiety", "anger", "sadness", "guilt", "neutral"],
+            "enum": ["fatigue", "anxiety", "anger", "sadness", "joy", "neutral"],
         },
         "intensity": {"type": "integer"},
         "context_keyword": {"type": "string"},
