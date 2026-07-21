@@ -18,10 +18,11 @@ class AuthService extends ChangeNotifier {
 
   bool get isAuthenticated => _currentUser != null;
 
-  /// 로그인 처리
-  /// 입력된 username에 @가 없을 경우 자동으로 @example.com을 결합하여 이메일 로그인을 지원합니다.
-  Future<void> login(String username, String password) async {
-    final email = username.contains('@') ? username : '$username@example.com';
+  /// 로그인 처리 (이메일 전용)
+  Future<void> login(String email, String password) async {
+    if (!email.contains('@')) {
+      throw Exception('올바른 이메일 형식을 입력해 주세요.');
+    }
 
     try {
       final response = await Supabase.instance.client.auth.signInWithPassword(
@@ -38,12 +39,51 @@ class AuthService extends ChangeNotifier {
       }
     } on AuthException catch (e) {
       if (e.message.contains('Invalid login credentials')) {
-        throw Exception('아이디 또는 비밀번호가 올바르지 않아요.');
+        throw Exception('이메일 또는 비밀번호가 올바르지 않아요.');
       } else {
         throw Exception(e.message);
       }
     } catch (e) {
       throw Exception('로그인 중 문제가 발생했습니다: $e');
+    }
+  }
+
+  /// 회원가입 처리 (자동 로그인 방지)
+  Future<String> signUp(String email, String password, String nickname) async {
+    if (!email.contains('@')) {
+      throw Exception('올바른 이메일 형식을 입력해 주세요.');
+    }
+
+    try {
+      final response = await Supabase.instance.client.auth.signUp(
+        email: email,
+        password: password,
+        data: {
+          'nickname': nickname,
+        },
+      );
+
+      final user = response.user;
+      final session = response.session;
+
+      if (user != null) {
+        if (session != null) {
+          // 자동 로그인이 일어났을 경우 로그아웃 처리하여 가입 완료 후 직접 로그인하도록 유도
+          await Supabase.instance.client.auth.signOut();
+          _currentUser = null;
+          notifyListeners();
+          return '회원가입이 완료되었습니다!\n방금 가입한 이메일로 로그인해 주세요.';
+        } else {
+          // 이메일 인증 메일 발송 옵션이 켜져 있는 경우
+          return '가입 인증 메일이 발송되었습니다!\n메일함의 확인 링크를 눌러 주세요.';
+        }
+      } else {
+        throw Exception('회원가입에 실패했습니다.');
+      }
+    } on AuthException catch (e) {
+      throw Exception(e.message);
+    } catch (e) {
+      throw Exception('회원가입 중 문제가 발생했습니다: $e');
     }
   }
 

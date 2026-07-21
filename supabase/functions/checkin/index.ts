@@ -101,9 +101,9 @@ serve(async (req) => {
     // [1단계] 위기 프리필터링 (결정적 차단)
     let isCrisis = CRISIS_KEYWORDS.some(k => cleanText.includes(k));
 
-    // [2단계] 1차 감정분석 및 위기 판정 (Gemini 2.0 Flash)
+    // [2단계] 1차 감정분석 및 위기 판정 (Gemini 3.1 Flash Lite)
     // Deno fetch로 직접 REST API 호출
-    const geminiUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${GEMINI_API_KEY}`;
+    const geminiUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-3.1-flash-lite:generateContent?key=${GEMINI_API_KEY}`;
     
     const analyzeSystemPrompt = `너는 한국어 감정 분석기다. 사용자가 하루의 마음을 적은 짧은 글을 읽고, 그 안의 감정을 정밀하게 분류한다.
 
@@ -241,8 +241,8 @@ false: 그 외 전부.`;
       }
     }
 
-    // [5단계] 2차 공감 대사 생성 (Gemini 1.5 Flash)
-    const gemini25Url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${GEMINI_API_KEY}`;
+    // [5단계] 2차 공감 대사 생성 (Gemini 3.1 Flash Lite)
+    const gemini25Url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-3.1-flash-lite:generateContent?key=${GEMINI_API_KEY}`;
     const closeness = intimacy < 3 ? "아직 서로 알아가는 사이" : (intimacy < 7 ? "꽤 친해진 사이" : "오랜 시간 함께한 깊은 사이");
     const tod = currentPeriod === "morning" ? "아침(하루 시작)" : "저녁(하루 회고)";
 

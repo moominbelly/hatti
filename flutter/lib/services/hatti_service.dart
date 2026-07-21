@@ -1,16 +1,98 @@
 import 'package:flutter/foundation.dart';
+import 'package:supabase_flutter/supabase_flutter.dart';
 
 import '../models/emotion.dart';
 
-/// 하띠 캐릭터 상태 + 시간대 판정.
-/// 지금은 메모리 저장(앱 종료 시 초기화). 로컬 저장이 필요하면
-/// applyCheckin 끝에 shared_preferences 쓰기를 추가하면 된다.
+/// 하띠 캐릭터 상태 및 데이터베이스 연동 서비스.
 class HattiService extends ChangeNotifier {
-  // 데모하기 좋게 초기값을 살짝 준다 (0,0이면 성장/기억이 안 보임)
-  int intimacy = 2;
-  int streak = 2;
+  int intimacy = 0;
+  int streak = 0;
   DateTime? lastCheckinDate;
   final List<Emotion> history = [];
+  bool isLoading = false;
+
+  HattiService() {
+    // 1. 초기 앱 실행 시 로그인 세션이 있으면 즉시 로드
+    final currentUser = Supabase.instance.client.auth.currentUser;
+    if (currentUser != null) {
+      loadStateAndHistory();
+    }
+
+    // 2. 로그인/로그아웃 등 세션 상태 변화 실시간 모니터링
+    Supabase.instance.client.auth.onAuthStateChange.listen((data) {
+      final user = data.session?.user;
+      if (user != null) {
+        loadStateAndHistory();
+      } else {
+        _resetState();
+      }
+    });
+  }
+
+  // ── 데이터베이스 동기화 ─────────────────────────────────────
+  /// Supabase DB에서 최신 hatti_state와 checkin_log를 조회하여 동기화합니다.
+  Future<void> loadStateAndHistory() async {
+    final user = Supabase.instance.client.auth.currentUser;
+    if (user == null) return;
+
+    isLoading = true;
+    notifyListeners();
+
+    try {
+      // 1) hatti_state 테이블에서 유저 성장 상태 로드
+      final stateData = await Supabase.instance.client
+          .from('hatti_state')
+          .select()
+          .eq('user_id', user.id)
+          .maybeSingle();
+
+      if (stateData != null) {
+        intimacy = stateData['intimacy'] ?? 0;
+        streak = stateData['streak'] ?? 0;
+        if (stateData['last_checked_in_at'] != null) {
+          lastCheckinDate = DateTime.parse(stateData['last_checked_in_at']).toLocal();
+        } else {
+          lastCheckinDate = null;
+        }
+      } else {
+        // 기록이 없는 신규 사용자는 0 상태로 초기화
+        intimacy = 0;
+        streak = 0;
+        lastCheckinDate = null;
+      }
+
+      // 2) checkin_log 테이블에서 최근 정상(위기 아님) 감정 기록 4개 로드
+      final logData = await Supabase.instance.client
+          .from('checkin_log')
+          .select('emotion')
+          .eq('user_id', user.id)
+          .eq('crisis_flag', false)
+          .order('created_at', ascending: false)
+          .limit(4);
+
+      history.clear();
+      for (final row in logData) {
+        final emotionKey = row['emotion'] as String?;
+        if (emotionKey != null) {
+          history.add(EmotionMeta.fromKey(emotionKey));
+        }
+      }
+    } catch (e) {
+      debugPrint('Supabase 데이터 동기화 에러: $e');
+    } finally {
+      isLoading = false;
+      notifyListeners();
+    }
+  }
+
+  void _resetState() {
+    intimacy = 0;
+    streak = 0;
+    lastCheckinDate = null;
+    history.clear();
+    isLoading = false;
+    notifyListeners();
+  }
 
   // ── 성장 단계 ──────────────────────────────────────────
   int get stage => intimacy >= 7 ? 3 : (intimacy >= 3 ? 2 : 1);
@@ -43,37 +125,9 @@ class HattiService extends ChangeNotifier {
     return '$hh:$mm';
   }
 
-  // ── 체크인 반영 ────────────────────────────────────────
-  /// 정상 경로에서만 호출(위기 경로는 게임화 없음).
-  /// 반환값: 토스트로 띄울 메시지(없으면 null)
+  // (이전 하위 호환성을 위해 빈 함수 유지)
   String? applyCheckin(Emotion emotion) {
-    final prevStage = stage;
-    final today = _dateOnly(DateTime.now());
-
-    streak = _nextStreak(streak, lastCheckinDate, today);
-    intimacy += 1; // 누적, 감소 없음
-    lastCheckinDate = today;
-    history.insert(0, emotion);
-    if (history.length > 4) history.removeRange(4, history.length);
-
-    notifyListeners();
-
-    // 성장 우선, 그다음 마일스톤
-    if (stage > prevStage) return '🌱 하띠가 자랐어! 이제 «$stageName»';
-    if (const [3, 7, 14].contains(streak)) {
-      return '🎉 $streak일 연속! 하띠가 특별한 인사를 준비했어';
-    }
     return null;
   }
-
-  /// 어제=+1 / 오늘 중복=유지 / 공백=리셋
-  static int _nextStreak(int prev, DateTime? last, DateTime today) {
-    if (last == null) return 1;
-    final days = today.difference(last).inDays;
-    if (days == 0) return prev;
-    if (days == 1) return prev + 1;
-    return 1;
-  }
-
-  static DateTime _dateOnly(DateTime d) => DateTime(d.year, d.month, d.day);
 }
+

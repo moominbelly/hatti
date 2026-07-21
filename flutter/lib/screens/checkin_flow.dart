@@ -84,9 +84,39 @@ class _CheckinFlowScreenState extends State<CheckinFlowScreen> {
     }
   }
 
-  void _finish() {
-    final msg = context.read<HattiService>().applyCheckin(_result!.emotion);
-    Navigator.of(context).pop(msg);
+  void _finish() async {
+    // 로딩 인디케이터 표시 (DB 동기화 대기)
+    showDialog(
+      context: context,
+      barrierDismissible: false,
+      builder: (context) => const Center(
+        child: CircularProgressIndicator(color: HattiColors.coral),
+      ),
+    );
+
+    final s = context.read<HattiService>();
+    final prevStage = s.stage;
+    final prevStreak = s.streak;
+
+    try {
+      await s.loadStateAndHistory();
+
+      if (!mounted) return;
+      Navigator.of(context).pop(); // 로딩 다이얼로그 닫기
+
+      String? msg;
+      if (s.stage > prevStage) {
+        msg = '🌱 하띠가 자랐어! 이제 «${s.stageName}»';
+      } else if (s.streak > prevStreak && const [3, 7, 14].contains(s.streak)) {
+        msg = '🎉 ${s.streak}일 연속! 하띠가 특별한 인사를 준비했어';
+      }
+
+      Navigator.of(context).pop(msg); // flow 화면을 닫고 메인에 마일스톤 토스트 메시지 반환
+    } catch (e) {
+      if (!mounted) return;
+      Navigator.of(context).pop(); // 로딩 다이얼로그 닫기
+      Navigator.of(context).pop(); // 그냥 닫기
+    }
   }
 
   @override
