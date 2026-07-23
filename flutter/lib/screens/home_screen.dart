@@ -1,15 +1,18 @@
+import 'dart:math';
+
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
-import 'package:supabase_flutter/supabase_flutter.dart';
 
 import '../data/content.dart';
 import '../models/emotion.dart';
+import '../models/extras.dart';
 import '../services/hatti_service.dart';
-import '../services/auth_service.dart';
 import '../theme.dart';
 import '../widgets/common.dart';
+import '../widgets/emotion_face.dart';
 import '../widgets/hatti_character.dart';
 import 'checkin_flow.dart';
+import 'history_screen.dart';
 
 class HomeScreen extends StatelessWidget {
   const HomeScreen({super.key});
@@ -32,8 +35,69 @@ class HomeScreen extends StatelessWidget {
   }
 
   String _greeting(HattiService s) {
+    // 쓰다듬으면 그 반응이 인사말 자리를 잠시 차지한다
+    if (s.pettingLine != null) return s.pettingLine!;
     if (s.isFirstTime) return Content.firstGreeting;
     return s.isMorning ? Content.morningGreeting : Content.eveningGreeting;
+  }
+
+  Future<void> _pickWeather(BuildContext context) async {
+    final s = context.read<HattiService>();
+    await showModalBottomSheet<void>(
+      context: context,
+      backgroundColor: const Color(0xFF41304A),
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
+      ),
+      builder: (ctx) => Padding(
+        padding: const EdgeInsets.fromLTRB(20, 20, 20, 32),
+        child: Column(mainAxisSize: MainAxisSize.min, children: [
+          Text('오늘 날씨는 어때?', style: HattiText.hand(size: 22)),
+          const SizedBox(height: 16),
+          Wrap(
+            spacing: 10,
+            runSpacing: 10,
+            alignment: WrapAlignment.center,
+            children: [
+              for (final w in Weather.values)
+                GestureDetector(
+                  onTap: () {
+                    s.setWeather(w);
+                    Navigator.of(ctx).pop();
+                  },
+                  child: Container(
+                    padding: const EdgeInsets.symmetric(
+                        horizontal: 16, vertical: 12),
+                    decoration: BoxDecoration(
+                      color: Colors.white.withValues(alpha: 0.09),
+                      borderRadius: BorderRadius.circular(16),
+                      border: Border.all(
+                          color: Colors.white.withValues(alpha: 0.16)),
+                    ),
+                    child: Text('${w.icon} ${w.labelKo}',
+                        style: HattiText.body(size: 14)),
+                  ),
+                ),
+            ],
+          ),
+        ]),
+      ),
+    );
+  }
+
+  Future<void> _openCard(BuildContext context) async {
+    final s = context.read<HattiService>();
+    final card = s.todayCard ?? s.drawCard();
+    if (!context.mounted) return;
+    await showDialog<void>(
+      context: context,
+      barrierColor: Colors.black.withValues(alpha: 0.6),
+      builder: (ctx) => Dialog(
+        backgroundColor: Colors.transparent,
+        insetPadding: const EdgeInsets.symmetric(horizontal: 36),
+        child: _CardFace(card),
+      ),
+    );
   }
 
   @override
@@ -55,13 +119,16 @@ class HomeScreen extends StatelessWidget {
                     const SizedBox(width: 14),
                     _Stat('🔥 ${s.streak}일'),
                   ]),
-                  Row(
-                    children: [
-                      _PeriodChip('${s.periodIcon} ${s.periodLabel} · ${s.clock}'),
-                      const SizedBox(width: 4),
-                      const _MenuButton(),
-                    ],
-                  ),
+                  Row(children: [
+                    GestureDetector(
+                      onTap: () => _pickWeather(context),
+                      child: _PeriodChip(s.weather == null
+                          ? '날씨?'
+                          : '${s.weather!.icon} ${s.weather!.labelKo}'),
+                    ),
+                    const SizedBox(width: 6),
+                    _PeriodChip('${s.periodIcon} ${s.periodLabel} · ${s.clock}'),
+                  ]),
                 ],
               ),
               // 캐릭터 영역
@@ -69,26 +136,48 @@ class HomeScreen extends StatelessWidget {
                 child: Column(
                   mainAxisAlignment: MainAxisAlignment.center,
                   children: [
-                    HattiCharacter(stage: s.stage),
+                    _PettableHatti(
+                      stage: s.stage,
+                      onPet: () => s.pet(),
+                    ),
                     const SizedBox(height: 6),
                     Text('Lv.${s.stage} · ${s.stageName}',
                         style: HattiText.body(
                             size: 12.5, color: HattiColors.creamDim)),
                     const SizedBox(height: 12),
                     SpeechBubble(_greeting(s)),
+                    if (s.canDrawCard || s.todayCard != null) ...[
+                      const SizedBox(height: 16),
+                      _CardSlot(
+                        drawn: s.todayCard,
+                        onTap: () => _openCard(context),
+                      ),
+                    ],
                     if (s.history.isNotEmpty) ...[
                       const SizedBox(height: 18),
-                      Text('최근 마음 기록',
-                          style: HattiText.body(
-                              size: 13, color: HattiColors.creamDim)),
-                      const SizedBox(height: 8),
-                      Wrap(
-                        spacing: 7,
-                        runSpacing: 7,
-                        alignment: WrapAlignment.center,
-                        children: [
-                          for (final e in s.history) _HistoryChip(e),
-                        ],
+                      GestureDetector(
+                        onTap: () => Navigator.of(context).push(
+                          MaterialPageRoute(
+                              builder: (_) => const HistoryScreen()),
+                        ),
+                        behavior: HitTestBehavior.opaque,
+                        child: Column(
+                          children: [
+                            Text('최근 마음 기록  ›',
+                                style: HattiText.body(
+                                    size: 13, color: HattiColors.creamDim)),
+                            const SizedBox(height: 8),
+                            Wrap(
+                              spacing: 7,
+                              runSpacing: 7,
+                              alignment: WrapAlignment.center,
+                              children: [
+                                for (final r in s.history.take(4))
+                                  _HistoryChip(r.emotion),
+                              ],
+                            ),
+                          ],
+                        ),
                       ),
                     ],
                   ],
@@ -103,321 +192,6 @@ class HomeScreen extends StatelessWidget {
             ],
           ),
         ),
-      ),
-    );
-  }
-}
-
-class _MenuButton extends StatelessWidget {
-  const _MenuButton();
-
-  @override
-  Widget build(BuildContext context) {
-    return PopupMenuButton<String>(
-      icon: const Icon(Icons.more_vert, color: HattiColors.cream),
-      color: HattiColors.paper,
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-      onSelected: (value) {
-        if (value == 'history') {
-          _showHistory(context);
-        } else if (value == 'version') {
-          _showVersion(context);
-        } else if (value == 'logout') {
-          _handleLogout(context);
-        }
-      },
-      itemBuilder: (BuildContext context) => [
-        PopupMenuItem<String>(
-          value: 'history',
-          child: Row(
-            children: [
-              const Icon(Icons.history, color: HattiColors.ink, size: 18),
-              const SizedBox(width: 8),
-              Text('지난 기록', style: HattiText.body(color: HattiColors.ink)),
-            ],
-          ),
-        ),
-        PopupMenuItem<String>(
-          value: 'version',
-          child: Row(
-            children: [
-              const Icon(Icons.info_outline, color: HattiColors.ink, size: 18),
-              const SizedBox(width: 8),
-              Text('버전 정보', style: HattiText.body(color: HattiColors.ink)),
-            ],
-          ),
-        ),
-        const PopupMenuDivider(),
-        PopupMenuItem<String>(
-          value: 'logout',
-          child: Row(
-            children: [
-              const Icon(Icons.logout, color: Colors.redAccent, size: 18),
-              const SizedBox(width: 8),
-              Text('로그아웃', style: HattiText.body(color: Colors.redAccent)),
-            ],
-          ),
-        ),
-      ],
-    );
-  }
-
-  void _showHistory(BuildContext context) {
-    showModalBottomSheet(
-      context: context,
-      isScrollControlled: true,
-      backgroundColor: Colors.transparent,
-      builder: (context) => const _HistoryBottomSheet(),
-    );
-  }
-
-  void _showVersion(BuildContext context) {
-    showDialog(
-      context: context,
-      builder: (context) => AlertDialog(
-        backgroundColor: HattiColors.paper,
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
-        title: Text('버전 정보', style: HattiText.body(size: 18, color: HattiColors.ink, w: FontWeight.bold)),
-        content: Column(
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Text('하띠 (Hatti) 앱', style: HattiText.body(size: 16, color: HattiColors.ink)),
-            const SizedBox(height: 6),
-            Text('버전: v0.1.0 (Scaffold)', style: HattiText.body(size: 14, color: HattiColors.cardInk)),
-            const SizedBox(height: 12),
-            Text('© 2026 Hatti Dev Team', style: HattiText.body(size: 12, color: Colors.grey)),
-          ],
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.of(context).pop(),
-            child: Text('확인', style: HattiText.body(color: HattiColors.coral, w: FontWeight.bold)),
-          ),
-        ],
-      ),
-    );
-  }
-
-  void _handleLogout(BuildContext context) {
-    showDialog(
-      context: context,
-      builder: (context) => AlertDialog(
-        backgroundColor: HattiColors.paper,
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
-        title: Text('로그아웃', style: HattiText.body(size: 18, color: HattiColors.ink, w: FontWeight.bold)),
-        content: Text('정말 하띠와 잠시 작별할까요?', style: HattiText.body(color: HattiColors.ink)),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.of(context).pop(),
-            child: Text('취소', style: HattiText.body(color: Colors.grey)),
-          ),
-          TextButton(
-            onPressed: () {
-              Navigator.of(context).pop();
-              context.read<AuthService>().logout();
-            },
-            child: Text('로그아웃', style: HattiText.body(color: Colors.redAccent, w: FontWeight.bold)),
-          ),
-        ],
-      ),
-    );
-  }
-}
-
-class _HistoryBottomSheet extends StatelessWidget {
-  const _HistoryBottomSheet();
-
-  @override
-  Widget build(BuildContext context) {
-    final user = Supabase.instance.client.auth.currentUser;
-    final Future<List<Map<String, dynamic>>> logsFuture = user == null 
-        ? Future.value([]) 
-        : Supabase.instance.client
-            .from('checkin_log')
-            .select('created_at, emotion, intensity, context_keyword, empathy, diary, raw_text, crisis_flag')
-            .eq('user_id', user.id)
-            .order('created_at', ascending: false)
-            .limit(10)
-            .then((data) => List<Map<String, dynamic>>.from(data));
-
-    return Container(
-      decoration: const BoxDecoration(
-        color: HattiColors.paper,
-        borderRadius: BorderRadius.only(
-          topLeft: Radius.circular(28),
-          topRight: Radius.circular(28),
-        ),
-      ),
-      padding: const EdgeInsets.fromLTRB(24, 16, 24, 24),
-      height: MediaQuery.of(context).size.height * 0.75,
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.stretch,
-        children: [
-          Center(
-            child: Container(
-              width: 48,
-              height: 4,
-              decoration: BoxDecoration(
-                color: Colors.grey.withValues(alpha: 0.3),
-                borderRadius: BorderRadius.circular(2),
-              ),
-            ),
-          ),
-          const SizedBox(height: 20),
-          Text(
-            '하띠가 기억하는 너의 마음들',
-            style: HattiText.hand(size: 24, color: HattiColors.ink, w: FontWeight.bold),
-            textAlign: TextAlign.center,
-          ),
-          const SizedBox(height: 16),
-          Expanded(
-            child: FutureBuilder<List<Map<String, dynamic>>>(
-              future: logsFuture,
-              builder: (context, snapshot) {
-                if (snapshot.connectionState == ConnectionState.waiting) {
-                  return const Center(
-                    child: CircularProgressIndicator(color: HattiColors.coral),
-                  );
-                }
-                if (snapshot.hasError) {
-                  return Center(
-                    child: Text(
-                      '마음 기록을 불러오지 못했어요.',
-                      style: HattiText.body(color: Colors.redAccent),
-                    ),
-                  );
-                }
-                final logs = snapshot.data ?? [];
-                if (logs.isEmpty) {
-                  return Center(
-                    child: Text(
-                      '아직 기록된 마음이 없어요.\n첫 마음을 하띠에게 들려주세요.',
-                      style: HattiText.body(color: HattiColors.cardInk),
-                      textAlign: TextAlign.center,
-                    ),
-                  );
-                }
-
-                return ListView.separated(
-                  itemCount: logs.length,
-                  separatorBuilder: (_, __) => const SizedBox(height: 12),
-                  itemBuilder: (context, index) {
-                    final log = logs[index];
-                    final date = DateTime.parse(log['created_at']).toLocal();
-                    final formattedDate = '${date.month}월 ${date.day}일 ${date.hour.toString().padLeft(2, '0')}:${date.minute.toString().padLeft(2, '0')}';
-                    final emotionKey = log['emotion'] as String;
-                    final emotion = EmotionMeta.fromKey(emotionKey);
-                    final isCrisis = log['crisis_flag'] as bool? ?? false;
-
-                    return Card(
-                      color: HattiColors.paperDeep.withValues(alpha: 0.4),
-                      elevation: 0,
-                      shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(16),
-                        side: BorderSide(
-                          color: isCrisis ? Colors.redAccent.withValues(alpha: 0.3) : Colors.transparent,
-                          width: 1
-                        )
-                      ),
-                      child: Theme(
-                        data: Theme.of(context).copyWith(dividerColor: Colors.transparent),
-                        child: ExpansionTile(
-                          tilePadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
-                          title: Row(
-                            children: [
-                              Container(
-                                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
-                                decoration: BoxDecoration(
-                                  color: isCrisis ? Colors.redAccent : emotion.tone,
-                                  borderRadius: BorderRadius.circular(8),
-                                ),
-                                child: Text(
-                                  isCrisis ? '위기' : emotion.labelKo,
-                                  style: HattiText.body(size: 12, color: Colors.white, w: FontWeight.bold),
-                                ),
-                              ),
-                              const SizedBox(width: 8),
-                              Expanded(
-                                child: Text(
-                                  log['context_keyword'] ?? '오늘의 마음',
-                                  style: HattiText.body(
-                                    size: 15, 
-                                    color: HattiColors.ink,
-                                    w: FontWeight.bold
-                                  ),
-                                  overflow: TextOverflow.ellipsis,
-                                ),
-                              ),
-                            ],
-                          ),
-                          subtitle: Padding(
-                            padding: const EdgeInsets.only(top: 4.0),
-                            child: Text(
-                              formattedDate,
-                              style: HattiText.body(size: 12, color: Colors.grey),
-                            ),
-                          ),
-                          children: [
-                            Padding(
-                              padding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
-                              child: Column(
-                                crossAxisAlignment: CrossAxisAlignment.stretch,
-                                children: [
-                                  const Divider(height: 12, color: Colors.grey),
-                                  Text(
-                                    '너의 한마디',
-                                    style: HattiText.body(size: 12, color: HattiColors.cardInk, w: FontWeight.bold),
-                                  ),
-                                  const SizedBox(height: 4),
-                                  Text(
-                                    log['raw_text'] ?? '',
-                                    style: HattiText.body(color: HattiColors.ink),
-                                  ),
-                                  if (log['empathy'] != null && (log['empathy'] as String).isNotEmpty) ...[
-                                    const SizedBox(height: 12),
-                                    Text(
-                                      '하띠의 한마디',
-                                      style: HattiText.body(size: 12, color: HattiColors.cardInk, w: FontWeight.bold),
-                                    ),
-                                    const SizedBox(height: 4),
-                                    Text(
-                                      log['empathy'],
-                                      style: HattiText.hand(size: 16, color: HattiColors.coral),
-                                    ),
-                                  ],
-                                  if (log['diary'] != null && (log['diary'] as String).isNotEmpty) ...[
-                                    const SizedBox(height: 12),
-                                    Text(
-                                      '하띠의 일기장',
-                                      style: HattiText.body(size: 12, color: HattiColors.cardInk, w: FontWeight.bold),
-                                    ),
-                                    const SizedBox(height: 4),
-                                    Container(
-                                      padding: const EdgeInsets.all(10),
-                                      decoration: BoxDecoration(
-                                        color: HattiColors.paperDeep.withValues(alpha: 0.6),
-                                        borderRadius: BorderRadius.circular(10),
-                                      ),
-                                      child: Text(
-                                        log['diary'],
-                                        style: HattiText.body(size: 13, color: HattiColors.ink),
-                                      ),
-                                    ),
-                                  ],
-                                ],
-                              ),
-                            )
-                          ],
-                        ),
-                      ),
-                    );
-                  },
-                );
-              },
-            ),
-          ),
-        ],
       ),
     );
   }
@@ -451,14 +225,165 @@ class _HistoryChip extends StatelessWidget {
   const _HistoryChip(this.emotion);
   @override
   Widget build(BuildContext context) => Container(
-        padding: const EdgeInsets.symmetric(horizontal: 11, vertical: 4),
+        padding: const EdgeInsets.fromLTRB(6, 4, 11, 4),
         decoration: BoxDecoration(
           color: emotion.tone.withValues(alpha: 0.9),
-          borderRadius: BorderRadius.circular(12),
+          borderRadius: BorderRadius.circular(14),
         ),
-        child: Text(emotion.labelKo,
-            style:
-                HattiText.body(size: 12, color: Colors.white)),
+        child: Row(mainAxisSize: MainAxisSize.min, children: [
+          EmotionFace(emotion, size: 20),
+          const SizedBox(width: 6),
+          Text(emotion.labelKo,
+              style: HattiText.body(size: 12, color: Colors.white)),
+        ]),
       );
 }
 
+/// 오늘의 카드 슬롯 — 체크인을 마쳐야 등장한다("보상 only").
+class _CardSlot extends StatelessWidget {
+  final LuckyCard? drawn;
+  final VoidCallback onTap;
+  const _CardSlot({required this.drawn, required this.onTap});
+
+  @override
+  Widget build(BuildContext context) {
+    final undrawn = drawn == null;
+    return GestureDetector(
+      onTap: onTap,
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 12),
+        decoration: BoxDecoration(
+          color: Colors.white.withValues(alpha: undrawn ? 0.12 : 0.07),
+          borderRadius: BorderRadius.circular(16),
+          border: Border.all(
+            color: undrawn
+                ? const Color(0xFFEBB25A).withValues(alpha: 0.55)
+                : Colors.white.withValues(alpha: 0.16),
+          ),
+        ),
+        child: Row(mainAxisSize: MainAxisSize.min, children: [
+          Text(undrawn ? '🎴' : '✨', style: const TextStyle(fontSize: 18)),
+          const SizedBox(width: 8),
+          Text(
+            undrawn ? Content.cardSlotTeaser : '오늘의 카드 · ${drawn!.name}',
+            style: HattiText.body(
+                size: 13.5,
+                color: undrawn ? HattiColors.cream : HattiColors.creamDim),
+          ),
+        ]),
+      ),
+    );
+  }
+}
+
+/// 카드 공개 다이얼로그.
+class _CardFace extends StatelessWidget {
+  final LuckyCard card;
+  const _CardFace(this.card);
+
+  @override
+  Widget build(BuildContext context) {
+    return TweenAnimationBuilder<double>(
+      tween: Tween(begin: 0, end: 1),
+      duration: const Duration(milliseconds: 520),
+      curve: Curves.easeOutBack,
+      builder: (context, t, child) => Opacity(
+        opacity: t.clamp(0.0, 1.0),
+        child: Transform.scale(scale: 0.9 + 0.1 * t, child: child),
+      ),
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 28, vertical: 34),
+        decoration: BoxDecoration(
+          gradient: const LinearGradient(
+            begin: Alignment.topLeft,
+            end: Alignment.bottomRight,
+            colors: [HattiColors.paper, HattiColors.paperDeep],
+          ),
+          borderRadius: BorderRadius.circular(22),
+          boxShadow: [
+            BoxShadow(
+                color: Colors.black.withValues(alpha: 0.4),
+                blurRadius: 40,
+                offset: const Offset(0, 18)),
+          ],
+        ),
+        child: Column(mainAxisSize: MainAxisSize.min, children: [
+          Text('오늘의 카드',
+              style: HattiText.body(
+                  size: 12, color: const Color(0xFFB08A5E), w: FontWeight.w600)),
+          const SizedBox(height: 14),
+          Text(card.name,
+              style: HattiText.hand(
+                  size: 34, color: HattiColors.cardInk, w: FontWeight.w700)),
+          const SizedBox(height: 4),
+          Text('— ${card.keyword} —',
+              style: HattiText.body(
+                  size: 13, color: const Color(0xFFA98A63))),
+          const SizedBox(height: 18),
+          Text(card.message,
+              textAlign: TextAlign.center,
+              style: HattiText.hand(size: 22, color: HattiColors.cardInk)),
+          const SizedBox(height: 22),
+          TextButton(
+            onPressed: () => Navigator.of(context).pop(),
+            child: Text('닫기',
+                style: HattiText.body(
+                    size: 14, color: const Color(0xFFA98A63))),
+          ),
+        ]),
+      ),
+    );
+  }
+}
+
+/// 쓰다듬을 수 있는 하띠 — 탭하면 몸으로 반응한다.
+/// 대사만 바뀌고 캐릭터가 가만히 있으면 애착이 생기지 않는다.
+/// 살짝 커졌다 돌아오며 좌우로 갸웃하는, 통통 튀는 반응.
+class _PettableHatti extends StatefulWidget {
+  final int stage;
+  final VoidCallback onPet;
+
+  const _PettableHatti({required this.stage, required this.onPet});
+
+  @override
+  State<_PettableHatti> createState() => _PettableHattiState();
+}
+
+class _PettableHattiState extends State<_PettableHatti>
+    with SingleTickerProviderStateMixin {
+  late final AnimationController _c = AnimationController(
+    vsync: this,
+    duration: const Duration(milliseconds: 460),
+  );
+
+  @override
+  void dispose() {
+    _c.dispose();
+    super.dispose();
+  }
+
+  void _tap() {
+    widget.onPet();
+    _c.forward(from: 0); // 연타해도 매번 처음부터 반응
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return GestureDetector(
+      onTap: _tap,
+      behavior: HitTestBehavior.opaque,
+      child: AnimatedBuilder(
+        animation: _c,
+        builder: (context, child) {
+          final t = _c.value;
+          final pop = sin(t * pi); // 0 → 1 → 0
+          return Transform.rotate(
+            angle: 0.07 * sin(t * pi * 2), // 좌우로 갸웃
+            child: Transform.scale(scale: 1 + 0.09 * pop, child: child),
+          );
+        },
+        child: HattiCharacter(stage: widget.stage),
+      ),
+    );
+  }
+}
