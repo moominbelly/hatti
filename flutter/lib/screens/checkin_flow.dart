@@ -5,10 +5,12 @@ import 'package:provider/provider.dart';
 
 import '../data/content.dart';
 import '../models/emotion.dart';
+import '../models/extras.dart';
 import '../services/api_client.dart';
 import '../services/hatti_service.dart';
 import '../theme.dart';
 import '../widgets/common.dart';
+import '../widgets/emotion_face.dart';
 import '../widgets/hatti_character.dart';
 
 enum _Phase { prompt, analyzing, response, crisis }
@@ -46,77 +48,19 @@ class _CheckinFlowScreenState extends State<CheckinFlowScreen> {
     FocusScope.of(context).unfocus();
     setState(() => _phase = _Phase.analyzing);
     final s = context.read<HattiService>();
-    try {
-      final res = await _api.checkin(_textCtrl.text,
-          period: s.period, intimacy: s.intimacy);
-      if (!mounted) return;
-      setState(() {
-        _result = res;
-        _showCard = false;
-        _phase = res.crisis ? _Phase.crisis : _Phase.response;
-      });
-    } catch (e) {
-      if (!mounted) return;
-      // 분석중 상태 해제 및 입력창으로 복구 (텍스트는 컨트롤러에 유지됨)
-      setState(() => _phase = _Phase.prompt);
-      
-      // 에러 다이얼로그 띄우기
-      showDialog(
-        context: context,
-        builder: (context) => AlertDialog(
-          backgroundColor: HattiColors.paper,
-          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
-          title: Text('앗, 오류가 발생했어요',
-              style: HattiText.body(size: 17, color: HattiColors.ink, w: FontWeight.bold)),
-          content: Text(
-            e.toString().replaceAll('Exception:', '').trim(),
-            style: HattiText.body(color: HattiColors.cardInk),
-          ),
-          actions: [
-            TextButton(
-              onPressed: () => Navigator.of(context).pop(),
-              child: Text('다시 해보기',
-                  style: HattiText.body(color: HattiColors.coral, w: FontWeight.bold)),
-            ),
-          ],
-        ),
-      );
-    }
+    final res = await _api.checkin(_textCtrl.text,
+        period: s.period, intimacy: s.intimacy, weather: s.weather?.key);
+    if (!mounted) return;
+    setState(() {
+      _result = res;
+      _showCard = false;
+      _phase = res.crisis ? _Phase.crisis : _Phase.response;
+    });
   }
 
-  void _finish() async {
-    // 로딩 인디케이터 표시 (DB 동기화 대기)
-    showDialog(
-      context: context,
-      barrierDismissible: false,
-      builder: (context) => const Center(
-        child: CircularProgressIndicator(color: HattiColors.coral),
-      ),
-    );
-
-    final s = context.read<HattiService>();
-    final prevStage = s.stage;
-    final prevStreak = s.streak;
-
-    try {
-      await s.loadStateAndHistory();
-
-      if (!mounted) return;
-      Navigator.of(context).pop(); // 로딩 다이얼로그 닫기
-
-      String? msg;
-      if (s.stage > prevStage) {
-        msg = '🌱 하띠가 자랐어! 이제 «${s.stageName}»';
-      } else if (s.streak > prevStreak && const [3, 7, 14].contains(s.streak)) {
-        msg = '🎉 ${s.streak}일 연속! 하띠가 특별한 인사를 준비했어';
-      }
-
-      Navigator.of(context).pop(msg); // flow 화면을 닫고 메인에 마일스톤 토스트 메시지 반환
-    } catch (e) {
-      if (!mounted) return;
-      Navigator.of(context).pop(); // 로딩 다이얼로그 닫기
-      Navigator.of(context).pop(); // 그냥 닫기
-    }
+  void _finish() {
+    final msg = context.read<HattiService>().applyCheckin(_result!);
+    Navigator.of(context).pop(msg);
   }
 
   @override
@@ -162,6 +106,13 @@ class _CheckinFlowScreenState extends State<CheckinFlowScreen> {
             onChanged: (_) => setState(() {}),
             maxLines: null,
             expands: true,
+            maxLength: Content.maxInputLength,
+            // 기본 Material 카운터는 숨기고, 아래에 직접 그린다
+            buildCounter: (_,
+                    {required currentLength,
+                    required isFocused,
+                    maxLength}) =>
+                null,
             textAlignVertical: TextAlignVertical.top,
             style: HattiText.body(size: 15.5),
             decoration: InputDecoration(
@@ -189,7 +140,9 @@ class _CheckinFlowScreenState extends State<CheckinFlowScreen> {
             ),
           ),
         ),
-        const SizedBox(height: 16),
+        const SizedBox(height: 10),
+        _InputCounter(_textCtrl.text.characters.length),
+        const SizedBox(height: 6),
         PrimaryButton('하띠에게 들려주기', onPressed: hasText ? _submit : null),
       ],
     );
@@ -298,6 +251,41 @@ class _CheckinFlowScreenState extends State<CheckinFlowScreen> {
 
 // ── 작은 조각들 ────────────────────────────────────────────
 
+/// 글자수 카운터 — 한계에 가까워질 때만 나타난다.
+/// 처음부터 노출하면 "잘 써야 한다"는 압박이 생기고, 그건 이 앱이 없애려는 부담이다.
+class _InputCounter extends StatelessWidget {
+  final int length;
+  const _InputCounter(this.length);
+
+  @override
+  Widget build(BuildContext context) {
+    const max = Content.maxInputLength;
+    final remaining = max - length;
+    final show = length >= Content.inputCounterThreshold;
+    final atLimit = remaining <= 0;
+
+    return AnimatedOpacity(
+      opacity: show ? 1 : 0,
+      duration: const Duration(milliseconds: 220),
+      child: SizedBox(
+        height: 16,
+        child: Align(
+          alignment: Alignment.centerRight,
+          child: Text(
+            atLimit ? '여기까지 담을 수 있어' : '$remaining자 남았어',
+            style: HattiText.body(
+              size: 11.5,
+              color: atLimit
+                  ? const Color(0xFFEB9F6F)
+                  : HattiColors.creamFaint,
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
 class _EmotionChip extends StatelessWidget {
   final Emotion emotion;
   final int intensity;
@@ -311,6 +299,8 @@ class _EmotionChip extends StatelessWidget {
           border: Border.all(color: Colors.white.withValues(alpha: 0.16)),
         ),
         child: Row(mainAxisSize: MainAxisSize.min, children: [
+          EmotionFace(emotion, size: 28),
+          const SizedBox(width: 9),
           Text(emotion.labelKo,
               style: HattiText.body(
                   size: 16, color: emotion.tone, w: FontWeight.w600)),
