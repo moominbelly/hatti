@@ -7,13 +7,14 @@ import datetime as dt
 
 from fastapi import FastAPI, Depends, BackgroundTasks, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 from sqlalchemy.orm import Session
 
 import models
 import logic
 import claude_client as ai
-from content import EMOTION_LABEL_KO, AFFIRMATIONS, CRISIS_RESPONSE
+from content import (EMOTION_LABEL_KO, AFFIRMATIONS, CRISIS_RESPONSE,
+                     MAX_INPUT_LENGTH)
 from models import SessionLocal, User, HattiState, CheckinLog
 
 app = FastAPI(title="Hatti API")
@@ -40,7 +41,7 @@ def get_db():
 # ── 스키마 ────────────────────────────────────────────────
 class CheckinIn(BaseModel):
     user_id: int
-    text: str
+    text: str = Field(..., max_length=MAX_INPUT_LENGTH)
     period: str = "evening"  # morning | evening
 
 
@@ -80,6 +81,10 @@ def checkin(body: CheckinIn, bg: BackgroundTasks, db: Session = Depends(get_db))
     text = body.text.strip()
     if not text:
         raise HTTPException(400, "빈 입력입니다.")
+    # 클라이언트 제한은 우회될 수 있으므로 서버에서도 검증한다.
+    if len(text) > MAX_INPUT_LENGTH:
+        raise HTTPException(
+            400, f"입력이 너무 깁니다. (최대 {MAX_INPUT_LENGTH}자)")
 
     state = _get_or_create_state(db, body.user_id)
 
