@@ -4,6 +4,9 @@
 -- 본 스크립트는 Supabase Dashboard의 SQL Editor에 붙여넣어 바로 실행할 수 있도록 통합된 DDL 스크립트입니다.
 -- 테이블 생성, 인덱스 최적화, RLS(Row Level Security) 설정 및 상태/스트릭 갱신 트랜잭션 함수를 포함합니다.
 
+DROP TABLE IF EXISTS public.checkin_log CASCADE;
+DROP TABLE IF EXISTS public.hatti_state CASCADE;
+
 -- 1. hatti_state 테이블 생성
 CREATE TABLE IF NOT EXISTS public.hatti_state (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
@@ -12,6 +15,14 @@ CREATE TABLE IF NOT EXISTS public.hatti_state (
     streak INTEGER NOT NULL DEFAULT 0,
     stage INTEGER NOT NULL DEFAULT 1, -- 1: 새싹 하띠, 2: 아기 하띠, 3: 하띠
     last_checked_in_at TIMESTAMPTZ,
+    -- 선택 요소 (홈 상시 인터랙션)
+    pet_count INTEGER NOT NULL DEFAULT 0,
+    today_weather TEXT,
+    weather_date DATE,
+    last_card_date DATE,
+    last_card_id TEXT,
+    character_name TEXT NOT NULL DEFAULT '하띠',
+    has_seen_welcome BOOLEAN NOT NULL DEFAULT false,
     created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
     updated_at TIMESTAMPTZ NOT NULL DEFAULT now(),
     UNIQUE(user_id)
@@ -29,6 +40,7 @@ CREATE TABLE IF NOT EXISTS public.checkin_log (
     affirmation TEXT,                        -- 감정 맞춤형 확언 카드 문구
     diary TEXT,                              -- 3차 백그라운드 하띠 시점 일기
     crisis_flag BOOLEAN NOT NULL DEFAULT false, -- 위기 판단 여부
+    weather TEXT,                            -- 유저가 고른 날씨 (선택)
     created_at TIMESTAMPTZ NOT NULL DEFAULT now()
 );
 
@@ -44,6 +56,21 @@ $$ LANGUAGE plpgsql;
 CREATE OR REPLACE TRIGGER update_hatti_state_modtime
 BEFORE UPDATE ON public.hatti_state
 FOR EACH ROW EXECUTE FUNCTION public.update_modified_column();
+
+-- 신규 회원 가입 시 hatti_state 자동 생성 트리거
+CREATE OR REPLACE FUNCTION public.handle_new_user()
+RETURNS TRIGGER AS $$
+BEGIN
+    INSERT INTO public.hatti_state (user_id)
+    VALUES (new.id)
+    ON CONFLICT (user_id) DO NOTHING;
+    RETURN NEW;
+END;
+$$ LANGUAGE plpgsql SECURITY DEFINER;
+
+CREATE OR REPLACE TRIGGER on_auth_user_created
+AFTER INSERT ON auth.users
+FOR EACH ROW EXECUTE FUNCTION public.handle_new_user();
 
 -- 4. 인덱스 (Index) 생성
 -- 유저별 최근 체크인 히스토리 조회 속도 최적화
@@ -68,6 +95,10 @@ FOR SELECT USING (auth.uid() = user_id);
 DROP POLICY IF EXISTS delete_hatti_state ON public.hatti_state;
 CREATE POLICY delete_hatti_state ON public.hatti_state
 FOR DELETE USING (auth.uid() = user_id);
+
+DROP POLICY IF EXISTS update_hatti_state ON public.hatti_state;
+CREATE POLICY update_hatti_state ON public.hatti_state
+FOR UPDATE USING (auth.uid() = user_id) WITH CHECK (auth.uid() = user_id);
 
 -- 5.2. checkin_log 정책
 DROP POLICY IF EXISTS select_checkin_log ON public.checkin_log;

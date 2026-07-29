@@ -150,14 +150,14 @@ class _CheckinFlowScreenState extends State<CheckinFlowScreen> {
 
   // ── ③ 분석중 ────────────────────────────────────────────
   Widget _buildAnalyzing() {
-    return Column(
+    return const Column(
       mainAxisAlignment: MainAxisAlignment.center,
       children: [
-        const HattiCharacter(),
-        const SizedBox(height: 18),
-        const SpeechBubble('하띠가 네 마음을 읽는 중…'),
-        const SizedBox(height: 16),
-        const _ThinkingDots(),
+        HattiCharacter(),
+        SizedBox(height: 18),
+        SpeechBubble('하띠가 네 마음을 읽는 중…'),
+        SizedBox(height: 16),
+        _ThinkingDots(),
       ],
     );
   }
@@ -165,41 +165,54 @@ class _CheckinFlowScreenState extends State<CheckinFlowScreen> {
   // ── ④ 응답 ──────────────────────────────────────────────
   Widget _buildResponse() {
     final r = _result!;
-    return SingleChildScrollView(
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Text('오늘의 감정',
-              style: HattiText.body(size: 13, color: HattiColors.creamDim)),
-          const SizedBox(height: 10),
-          Wrap(
-            spacing: 10,
-            runSpacing: 8,
-            crossAxisAlignment: WrapCrossAlignment.center,
-            children: [
-              _EmotionChip(r.emotion, r.intensity),
-              _ContextTag(r.contextKeyword),
-            ],
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        return SingleChildScrollView(
+          physics: const AlwaysScrollableScrollPhysics(),
+          child: ConstrainedBox(
+            constraints: BoxConstraints(
+              minHeight: constraints.maxHeight,
+            ),
+            child: IntrinsicHeight(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text('오늘의 감정',
+                      style: HattiText.body(size: 13, color: HattiColors.creamDim)),
+                  const SizedBox(height: 10),
+                  Wrap(
+                    spacing: 10,
+                    runSpacing: 8,
+                    crossAxisAlignment: WrapCrossAlignment.center,
+                    children: [
+                      _EmotionChip(r.emotion, r.intensity),
+                      _ContextTag(r.contextKeyword),
+                    ],
+                  ),
+                  const SizedBox(height: 22),
+                  Center(
+                    child: Column(children: [
+                      HattiCharacter(
+                          tone: r.emotion.tone, mood: r.emotion, scale: 0.66),
+                      SpeechBubble(r.empathy),
+                    ]),
+                  ),
+                  const Spacer(),
+                  const SizedBox(height: 20),
+                  if (!_showCard)
+                    GhostButton('하띠의 확언 카드 받기 ✉️',
+                        onPressed: () => setState(() => _showCard = true))
+                  else ...[
+                    _AffirmationCard(r.affirmation),
+                    const SizedBox(height: 20),
+                    PrimaryButton('체크인 마치기', onPressed: _finish),
+                  ],
+                ],
+              ),
+            ),
           ),
-          const SizedBox(height: 22),
-          Center(
-            child: Column(children: [
-              HattiCharacter(
-                  tone: r.emotion.tone, mood: r.emotion, scale: 0.66),
-              SpeechBubble(r.empathy),
-            ]),
-          ),
-          const SizedBox(height: 20),
-          if (!_showCard)
-            GhostButton('하띠의 확언 카드 받기 ✉️',
-                onPressed: () => setState(() => _showCard = true))
-          else ...[
-            _AffirmationCard(r.affirmation),
-            const SizedBox(height: 20),
-            PrimaryButton('체크인 마치기', onPressed: _finish),
-          ],
-        ],
-      ),
+        );
+      }
     );
   }
 

@@ -6,13 +6,14 @@ import '../models/emotion.dart';
 class ApiClient {
   /// [period]: 'morning' | 'evening', [intimacy]: 프롬프트 톤 조절용
   Future<CheckinResult> checkin(String text,
-      {required String period, required int intimacy}) async {
+      {required String period, required int intimacy, String? weather}) async {
     try {
       final response = await Supabase.instance.client.functions.invoke(
         'checkin',
         body: {
           'text': text.trim(),
           'period': period,
+          if (weather != null) 'weather': weather,
         },
       );
 

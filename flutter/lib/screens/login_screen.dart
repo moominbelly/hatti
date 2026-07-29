@@ -165,12 +165,12 @@ class _LoginScreenState extends State<LoginScreen> {
                   
                   // 서비스 타이틀
                   Text(
-                    'Hatti',
+                    '하띠',
                     style: HattiText.hand(size: 36, w: FontWeight.bold),
                   ),
                   const SizedBox(height: 6),
                   Text(
-                    '매일의 마음을 돌보는 감정 다마고치',
+                    '매일, 마음을 들여다보는 작은 친구',
                     style: HattiText.body(size: 14, color: HattiColors.creamDim),
                   ),
                   const SizedBox(height: 32),
@@ -322,6 +322,15 @@ class _LoginScreenState extends State<LoginScreen> {
                           ),
                         ),
                       ],
+                    ),
+                  ),
+                  const SizedBox(height: 16),
+                  Text(
+                    '간단하게 시작하고, 기록은 계정에 안전하게 보관돼요.\n기기를 바꿔도 하띠는 그대로예요.',
+                    textAlign: TextAlign.center,
+                    style: HattiText.body(
+                      size: 12.5,
+                      color: HattiColors.creamDim,
                     ),
                   ),
                   const SizedBox(height: 24),

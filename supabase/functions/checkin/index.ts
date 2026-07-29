@@ -87,7 +87,7 @@ serve(async (req) => {
     const userId = user.id;
 
     // 2. 요청 데이터 파싱
-    const { text, period } = await req.json();
+    const { text, period, weather } = await req.json();
     const cleanText = (text ?? "").trim();
     if (!cleanText) {
       return new Response(
@@ -245,6 +245,12 @@ false: 그 외 전부.`;
     const gemini25Url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-3.1-flash-lite:generateContent?key=${GEMINI_API_KEY}`;
     const closeness = intimacy < 3 ? "아직 서로 알아가는 사이" : (intimacy < 7 ? "꽤 친해진 사이" : "오랜 시간 함께한 깊은 사이");
     const tod = currentPeriod === "morning" ? "아침(하루 시작)" : "저녁(하루 회고)";
+    
+    const weatherMap: Record<string, string> = {
+      sunny: "맑음", cloudy: "구름", rain: "비", snow: "눈", windy: "바람", fog: "안개"
+    };
+    const weatherKo = weather ? (weatherMap[weather] || weather) : null;
+    const weatherInfo = weatherKo ? `\n오늘 날씨: ${weatherKo}` : "";
 
     const empathySystemPrompt = `너는 '하띠'다. 사용자의 감정을 매일 돌봐주는 다정한 감정 다마고치 캐릭터.
 
@@ -260,7 +266,7 @@ false: 그 외 전부.`;
 - 이모지, 해시태그, 물결표`;
 
     const empathyUserPrompt = `[체크인 정보]
-시간대: ${tod}
+시간대: ${tod}${weatherInfo}
 감정: ${emotionKo} (강도 ${intensity}/5)
 맥락: ${context}
 하띠와의 친밀도: ${closeness}${memoryBlock}
@@ -335,6 +341,7 @@ ${cleanText}
         empathy: empathy,
         affirmation: affirmation,
         crisis_flag: false,
+        weather: weather,
       })
       .select("id")
       .single();

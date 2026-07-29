@@ -6,6 +6,7 @@ import 'package:provider/provider.dart';
 import '../data/content.dart';
 import '../models/emotion.dart';
 import '../models/extras.dart';
+import '../services/auth_service.dart';
 import '../services/hatti_service.dart';
 import '../theme.dart';
 import '../widgets/common.dart';
@@ -32,6 +33,43 @@ class HomeScreen extends StatelessWidget {
               RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
         ));
     }
+  }
+
+  void _showLogoutDialog(BuildContext context) {
+    showDialog(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        backgroundColor: const Color(0xFF2D1F35),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+        title: Text(
+          '로그아웃',
+          style: HattiText.body(size: 18, w: FontWeight.bold),
+        ),
+        content: Text(
+          '정말 로그아웃 하시겠습니까?',
+          style: HattiText.body(size: 15, color: HattiColors.creamDim),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(ctx).pop(),
+            child: Text(
+              '아니요',
+              style: HattiText.body(size: 14, color: HattiColors.creamDim),
+            ),
+          ),
+          TextButton(
+            onPressed: () {
+              Navigator.of(ctx).pop();
+              context.read<AuthService>().logout();
+            },
+            child: Text(
+              '네',
+              style: HattiText.body(size: 14, color: HattiColors.coral, w: FontWeight.bold),
+            ),
+          ),
+        ],
+      ),
+    );
   }
 
   String _greeting(HattiService s) {
@@ -104,6 +142,24 @@ class HomeScreen extends StatelessWidget {
   Widget build(BuildContext context) {
     final s = context.watch<HattiService>();
 
+    // 초기 상태 로딩 중에는 로딩 스피너 표시 (온보딩 화면 번쩍임 방지)
+    if (s.isLoading && s.history.isEmpty && s.intimacy == 0) {
+      return const Scaffold(
+        body: DuskBackground(
+          child: Center(
+            child: CircularProgressIndicator(
+              valueColor: AlwaysStoppedAnimation<Color>(HattiColors.cream),
+            ),
+          ),
+        ),
+      );
+    }
+
+    // 새로 가입한 회원이고 웰컴 페이지를 보지 않은 경우 시작 페이지 노출
+    if (s.isFirstTime && !s.hasSeenWelcome) {
+      return _WelcomeOnboarding(service: s);
+    }
+
     return Scaffold(
       body: DuskBackground(
         child: Padding(
@@ -127,7 +183,7 @@ class HomeScreen extends StatelessWidget {
                           : '${s.weather!.icon} ${s.weather!.labelKo}'),
                     ),
                     const SizedBox(width: 6),
-                    _PeriodChip('${s.periodIcon} ${s.periodLabel} · ${s.clock}'),
+                    _PeriodChip('${s.periodIcon} ${s.periodLabel}'),
                   ]),
                 ],
               ),
@@ -153,42 +209,60 @@ class HomeScreen extends StatelessWidget {
                         onTap: () => _openCard(context),
                       ),
                     ],
-                    if (s.history.isNotEmpty) ...[
-                      const SizedBox(height: 18),
-                      GestureDetector(
-                        onTap: () => Navigator.of(context).push(
-                          MaterialPageRoute(
-                              builder: (_) => const HistoryScreen()),
-                        ),
-                        behavior: HitTestBehavior.opaque,
-                        child: Column(
-                          children: [
-                            Text('최근 마음 기록  ›',
-                                style: HattiText.body(
-                                    size: 13, color: HattiColors.creamDim)),
-                            const SizedBox(height: 8),
-                            Wrap(
-                              spacing: 7,
-                              runSpacing: 7,
-                              alignment: WrapAlignment.center,
-                              children: [
-                                for (final r in s.history.take(4))
-                                  _HistoryChip(r.emotion),
-                              ],
-                            ),
-                          ],
-                        ),
+                    const SizedBox(height: 18),
+                    GestureDetector(
+                      onTap: () => Navigator.of(context).push(
+                        MaterialPageRoute(
+                            builder: (_) => const HistoryScreen()),
                       ),
-                    ],
+                      behavior: HitTestBehavior.opaque,
+                      child: Column(
+                        children: [
+                          Text('최근 마음 기록  ›',
+                              style: HattiText.body(
+                                  size: 13, color: HattiColors.creamDim)),
+                          const SizedBox(height: 8),
+                          Wrap(
+                            spacing: 7,
+                            runSpacing: 7,
+                            alignment: WrapAlignment.center,
+                            children: [
+                              if (s.history.isEmpty)
+                                Text(
+                                  '아직 기록이 없어요',
+                                  style: HattiText.body(
+                                      size: 12,
+                                      color: HattiColors.creamFaint),
+                                )
+                              else
+                                for (final r in s.history.take(4))
+                                  _HistoryChip(r),
+                            ],
+                          ),
+                        ],
+                      ),
+                    ),
                   ],
                 ),
               ),
               PrimaryButton('체크인 시작하기',
                   onPressed: () => _startCheckin(context)),
-              const SizedBox(height: 14),
-              Text('프로토타입 · 응답은 예시입니다',
-                  style:
-                      HattiText.body(size: 11, color: HattiColors.creamFaint)),
+              const SizedBox(height: 16),
+              TextButton(
+                onPressed: () => _showLogoutDialog(context),
+                style: TextButton.styleFrom(
+                  minimumSize: Size.zero,
+                  padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                  tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                ),
+                child: Text(
+                  '로그아웃',
+                  style: HattiText.body(size: 13, color: HattiColors.creamFaint).copyWith(
+                    decoration: TextDecoration.underline,
+                    decorationColor: HattiColors.creamFaint,
+                  ),
+                ),
+              ),
             ],
           ),
         ),
@@ -383,6 +457,115 @@ class _PettableHattiState extends State<_PettableHatti>
           );
         },
         child: HattiCharacter(stage: widget.stage),
+      ),
+    );
+  }
+}
+
+class _WelcomeOnboarding extends StatefulWidget {
+  final HattiService service;
+  const _WelcomeOnboarding({required this.service});
+
+  @override
+  State<_WelcomeOnboarding> createState() => _WelcomeOnboardingState();
+}
+
+class _WelcomeOnboardingState extends State<_WelcomeOnboarding> {
+  int _step = 0; // 0: welcome speech bubbles, 1: naming character
+  final _nameCtrl = TextEditingController();
+
+  @override
+  void dispose() {
+    _nameCtrl.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      body: DuskBackground(
+        child: Padding(
+          padding: const EdgeInsets.fromLTRB(24, 40, 24, 30),
+          child: Column(
+            children: [
+              const Spacer(flex: 2),
+              // 캐릭터 상단 배치 (새싹하띠 stage 1)
+              const HattiCharacter(stage: 1, scale: 1.3),
+              const SizedBox(height: 32),
+              if (_step == 0) ...[
+                // 첫 번째 투명 대화 상자 (줄바꿈 반영)
+                const SpeechBubble(
+                  '안녕! 나는 네 마음을\n함께 들여다볼 하띠야.',
+                  fontSize: 18,
+                ),
+                const SizedBox(height: 16),
+                
+                // 두 번째 투명 대화 상자 (줄바꿈 반영)
+                const SpeechBubble(
+                  '매일 마음을 들려주면,\n내가 곁에서 들을게. 그거면 돼.',
+                  fontSize: 18,
+                ),
+                const Spacer(flex: 3),
+                
+                // 좋아 시작할래 버튼
+                PrimaryButton(
+                  '좋아, 시작할래',
+                  onPressed: () {
+                    setState(() => _step = 1);
+                  },
+                ),
+              ] else ...[
+                // 캐릭터 바로 아래 문구
+                Text(
+                  '이 아이에게\n이름을 지어줄래?',
+                  textAlign: TextAlign.center,
+                  style: HattiText.body(size: 22, w: FontWeight.bold),
+                ),
+                const SizedBox(height: 24),
+                
+                // 닉네임 입력 칸
+                TextField(
+                  controller: _nameCtrl,
+                  style: HattiText.body(color: HattiColors.ink),
+                  textAlign: TextAlign.center,
+                  maxLength: 12,
+                  buildCounter: (_, {required currentLength, required isFocused, maxLength}) => null,
+                  decoration: InputDecoration(
+                    hintText: '이름을 입력해줘',
+                    hintStyle: HattiText.body(color: HattiColors.ink.withValues(alpha: 0.5)),
+                    filled: true,
+                    fillColor: HattiColors.paper,
+                    contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+                    border: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(14),
+                      borderSide: BorderSide.none,
+                    ),
+                  ),
+                ),
+                const SizedBox(height: 8),
+                
+                // "나중에 바꿀 수도 있어" 글귀
+                Text(
+                  '나중에 바꿀 수도 있어',
+                  style: HattiText.body(size: 13, color: HattiColors.creamDim),
+                ),
+                const Spacer(flex: 3),
+                
+                // 시작하기 버튼
+                PrimaryButton(
+                  '시작하기',
+                  onPressed: () {
+                    final name = _nameCtrl.text.trim();
+                    if (name.isNotEmpty) {
+                      widget.service.updateCharacterName(name);
+                    }
+                    widget.service.completeWelcome();
+                  },
+                ),
+              ],
+            ],
+          ),
+        ),
       ),
     );
   }
