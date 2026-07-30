@@ -554,12 +554,12 @@ class _WelcomeOnboardingState extends State<_WelcomeOnboarding> {
                 // 시작하기 버튼
                 PrimaryButton(
                   '시작하기',
-                  onPressed: () {
+                  onPressed: () async {
                     final name = _nameCtrl.text.trim();
                     if (name.isNotEmpty) {
-                      widget.service.updateCharacterName(name);
+                      await widget.service.updateCharacterName(name);
                     }
-                    widget.service.completeWelcome();
+                    await widget.service.completeWelcome();
                   },
                 ),
               ],

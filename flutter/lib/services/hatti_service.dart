@@ -50,41 +50,57 @@ class HattiService extends ChangeNotifier {
   bool get hasSeenWelcome => _hasSeenWelcome;
   String get characterName => _characterName;
 
-  void completeWelcome() {
+  Future<void> completeWelcome() async {
     _hasSeenWelcome = true;
     notifyListeners();
 
-    // 백그라운드 DB 저장 (실패해도 무방)
     final user = Supabase.instance.client.auth.currentUser;
     if (user != null) {
-      Supabase.instance.client
-          .from('hatti_state')
-          .update({'has_seen_welcome': true})
-          .eq('user_id', user.id)
-          .then((_) => null)
-          .catchError((e) {
-            debugPrint('웰컴 상태 DB 갱신 에러: $e');
-            return null;
-          });
+      try {
+        await Supabase.instance.client
+            .from('hatti_state')
+            .update({
+              'has_seen_welcome': true,
+              'character_name': _characterName,
+            })
+            .eq('user_id', user.id);
+      } catch (_) {
+        try {
+          await Supabase.instance.client
+              .from('hatti_state')
+              .upsert({
+                'user_id': user.id,
+                'has_seen_welcome': true,
+                'character_name': _characterName,
+              }, onConflict: 'user_id');
+        } catch (_) {}
+      }
     }
   }
 
-  void updateCharacterName(String name) {
+  Future<void> updateCharacterName(String name) async {
     _characterName = name.trim();
     notifyListeners();
 
-    // 백그라운드 DB 저장 (실패해도 무방)
     final user = Supabase.instance.client.auth.currentUser;
     if (user != null) {
-      Supabase.instance.client
-          .from('hatti_state')
-          .update({'character_name': _characterName})
-          .eq('user_id', user.id)
-          .then((_) => null)
-          .catchError((e) {
-            debugPrint('캐릭터 이름 DB 갱신 에러: $e');
-            return null;
-          });
+      try {
+        await Supabase.instance.client
+            .from('hatti_state')
+            .update({
+              'character_name': _characterName,
+            })
+            .eq('user_id', user.id);
+      } catch (_) {
+        try {
+          await Supabase.instance.client
+              .from('hatti_state')
+              .upsert({
+                'user_id': user.id,
+                'character_name': _characterName,
+              }, onConflict: 'user_id');
+        } catch (_) {}
+      }
     }
   }
 
@@ -138,7 +154,7 @@ class HattiService extends ChangeNotifier {
         _characterName = stateData['character_name'] ?? '하띠';
         _hasSeenWelcome = stateData['has_seen_welcome'] ?? false;
       } else {
-        // 기록이 없는 신규 사용자는 0 상태로 초기화
+        // 기록이 없는 신규 사용자는 0 상태로 초기화하고 DB 기본 행 생성
         intimacy = 0;
         streak = 0;
         lastCheckinDate = null;
@@ -147,6 +163,19 @@ class HattiService extends ChangeNotifier {
         _petCount = 0;
         _characterName = '하띠';
         _hasSeenWelcome = false;
+
+        try {
+          await Supabase.instance.client.from('hatti_state').upsert({
+            'user_id': user.id,
+            'intimacy': 0,
+            'streak': 0,
+            'stage': 1,
+            'character_name': '하띠',
+            'has_seen_welcome': false,
+          }, onConflict: 'user_id');
+        } catch (e) {
+          debugPrint('초기 hatti_state 생성 에러: $e');
+        }
       }
 
       // 2) checkin_log 테이블에서 최근 정상(위기 아님) 감정 기록 4개 로드
@@ -246,11 +275,11 @@ class HattiService extends ChangeNotifier {
     if (user != null) {
       Supabase.instance.client
           .from('hatti_state')
-          .update({
+          .upsert({
+            'user_id': user.id,
             'today_weather': w.key,
             'weather_date': DateTime.now().toUtc().toIso8601String().split('T')[0],
-          })
-          .eq('user_id', user.id)
+          }, onConflict: 'user_id')
           .then((_) => null)
           .catchError((e) {
             debugPrint('날씨 DB 갱신 에러: $e');
@@ -275,8 +304,10 @@ class HattiService extends ChangeNotifier {
     if (user != null) {
       Supabase.instance.client
           .from('hatti_state')
-          .update({'pet_count': _petCount})
-          .eq('user_id', user.id)
+          .upsert({
+            'user_id': user.id,
+            'pet_count': _petCount,
+          }, onConflict: 'user_id')
           .then((_) => null)
           .catchError((e) {
             debugPrint('쓰다듬기 DB 갱신 에러: $e');
@@ -295,11 +326,11 @@ class HattiService extends ChangeNotifier {
     if (user != null) {
       Supabase.instance.client
           .from('hatti_state')
-          .update({
+          .upsert({
+            'user_id': user.id,
             'last_card_id': card.id,
             'last_card_date': DateTime.now().toUtc().toIso8601String().split('T')[0],
-          })
-          .eq('user_id', user.id)
+          }, onConflict: 'user_id')
           .then((_) => null)
           .catchError((e) {
             debugPrint('카드 뽑기 DB 갱신 에러: $e');

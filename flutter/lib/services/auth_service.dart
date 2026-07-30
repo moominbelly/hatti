@@ -5,16 +5,19 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 /// Supabase Auth 연동 완료.
 class AuthService extends ChangeNotifier {
   String? _currentUser;
+  String? _nickname;
 
   AuthService() {
     // 앱이 실행될 때 기존 로그인 세션이 유지되어 있으면 불러옴
     final sessionUser = Supabase.instance.client.auth.currentUser;
     if (sessionUser != null) {
       _currentUser = sessionUser.email;
+      _nickname = sessionUser.userMetadata?['nickname'] as String?;
     }
   }
 
   String? get currentUser => _currentUser;
+  String? get nickname => _nickname;
 
   bool get isAuthenticated => _currentUser != null;
 
@@ -33,6 +36,7 @@ class AuthService extends ChangeNotifier {
       final user = response.user;
       if (user != null) {
         _currentUser = user.email;
+        _nickname = user.userMetadata?['nickname'] as String?;
         notifyListeners();
       } else {
         throw Exception('사용자 정보를 가져올 수 없습니다.');
@@ -71,6 +75,7 @@ class AuthService extends ChangeNotifier {
           // 자동 로그인이 일어났을 경우 로그아웃 처리하여 가입 완료 후 직접 로그인하도록 유도
           await Supabase.instance.client.auth.signOut();
           _currentUser = null;
+          _nickname = null;
           notifyListeners();
           return '회원가입이 완료되었습니다!\n방금 가입한 이메일로 로그인해 주세요.';
         } else {
@@ -91,6 +96,7 @@ class AuthService extends ChangeNotifier {
   Future<void> logout() async {
     await Supabase.instance.client.auth.signOut();
     _currentUser = null;
+    _nickname = null;
     notifyListeners();
   }
 }

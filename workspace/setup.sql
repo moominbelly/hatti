@@ -100,6 +100,10 @@ DROP POLICY IF EXISTS update_hatti_state ON public.hatti_state;
 CREATE POLICY update_hatti_state ON public.hatti_state
 FOR UPDATE USING (auth.uid() = user_id) WITH CHECK (auth.uid() = user_id);
 
+DROP POLICY IF EXISTS insert_hatti_state ON public.hatti_state;
+CREATE POLICY insert_hatti_state ON public.hatti_state
+FOR INSERT WITH CHECK (auth.uid() = user_id);
+
 -- 5.2. checkin_log 정책
 DROP POLICY IF EXISTS select_checkin_log ON public.checkin_log;
 CREATE POLICY select_checkin_log ON public.checkin_log
