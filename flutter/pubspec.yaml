@@ -12,6 +12,7 @@ dependencies:
   provider: ^6.1.2
   google_fonts: ^6.2.1
   flutter_dotenv: ^5.1.0
+  shared_preferences: ^2.3.2
 
   # 나중에 백엔드 연결 시 주석 해제:
   supabase_flutter: ^2.5.0

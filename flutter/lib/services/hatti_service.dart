@@ -1,6 +1,7 @@
 import 'dart:async';
 import 'dart:math';
 import 'package:flutter/foundation.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
 import '../models/emotion.dart';
@@ -13,7 +14,7 @@ class HattiService extends ChangeNotifier {
   int streak = 0;
   DateTime? lastCheckinDate;
   final List<Emotion> history = [];
-  bool isLoading = false;
+  bool isLoading = true;
 
   // ── 선택적 상호작용 관련 로컬 상태 ─────────────────────────
   Weather? _weather;
@@ -25,21 +26,80 @@ class HattiService extends ChangeNotifier {
   String _characterName = '하띠';
 
   HattiService() {
-    // 1. 초기 앱 실행 시 로그인 세션이 있으면 즉시 로드
-    final currentUser = Supabase.instance.client.auth.currentUser;
-    if (currentUser != null) {
-      loadStateAndHistory();
-    }
+    _initLocalState();
 
-    // 2. 로그인/로그아웃 등 세션 상태 변화 실시간 모니터링
+    // 로그인/로그아웃 등 세션 상태 변화 실시간 모니터링
     Supabase.instance.client.auth.onAuthStateChange.listen((data) {
       final user = data.session?.user;
       if (user != null) {
         loadStateAndHistory();
       } else {
-        _resetState();
+        _onUserLogout();
       }
     });
+  }
+
+  // ── 로컬 SharedPreferences 로드 및 저장 ─────────────────────
+  Future<void> _initLocalState() async {
+    isLoading = true;
+    notifyListeners();
+
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      _hasSeenWelcome = prefs.getBool('has_seen_welcome') ?? false;
+      _characterName = prefs.getString('character_name') ?? '하띠';
+      intimacy = prefs.getInt('intimacy') ?? 0;
+      streak = prefs.getInt('streak') ?? 0;
+      
+      final lastDateStr = prefs.getString('last_checkin');
+      if (lastDateStr != null) {
+        lastCheckinDate = DateTime.tryParse(lastDateStr)?.toLocal();
+      }
+      
+      final historyKeys = prefs.getStringList('history') ?? [];
+      history.clear();
+      for (final key in historyKeys) {
+        history.add(EmotionMeta.fromKey(key));
+      }
+      
+      final cardId = prefs.getString('today_card');
+      if (cardId != null) {
+        _todayCard = luckyCards.firstWhere(
+          (c) => c.id == cardId,
+          orElse: () => luckyCards.first,
+        );
+      }
+    } catch (e) {
+      debugPrint('로컬 저장소 로드 에러: $e');
+    }
+
+    final currentUser = Supabase.instance.client.auth.currentUser;
+    if (currentUser != null) {
+      await loadStateAndHistory();
+    } else {
+      isLoading = false;
+      notifyListeners();
+    }
+  }
+
+  Future<void> _saveLocalState() async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      await prefs.setBool('has_seen_welcome', _hasSeenWelcome);
+      await prefs.setString('character_name', _characterName);
+      await prefs.setInt('intimacy', intimacy);
+      await prefs.setInt('streak', streak);
+      if (lastCheckinDate != null) {
+        await prefs.setString('last_checkin', lastCheckinDate!.toIso8601String());
+      }
+      final historyKeys = history.map((e) => e.key).toList();
+      await prefs.setStringList('history', historyKeys);
+      if (_todayCard != null) {
+        await prefs.setString('today_card', _todayCard!.id);
+      }
+    } catch (e) {
+      debugPrint('로컬 저장소 저장 에러: $e');
+    }
   }
 
   // Getters
@@ -53,6 +113,7 @@ class HattiService extends ChangeNotifier {
   Future<void> completeWelcome() async {
     _hasSeenWelcome = true;
     notifyListeners();
+    await _saveLocalState();
 
     final user = Supabase.instance.client.auth.currentUser;
     if (user != null) {
@@ -81,6 +142,7 @@ class HattiService extends ChangeNotifier {
   Future<void> updateCharacterName(String name) async {
     _characterName = name.trim();
     notifyListeners();
+    await _saveLocalState();
 
     final user = Supabase.instance.client.auth.currentUser;
     if (user != null) {
@@ -202,20 +264,8 @@ class HattiService extends ChangeNotifier {
     }
   }
 
-  void _resetState() {
-    intimacy = 0;
-    streak = 0;
-    lastCheckinDate = null;
-    history.clear();
-    isLoading = false;
-    _weather = null;
-    _todayCard = null;
-    _petCount = 0;
-    _pettingLine = null;
-    _petTimer?.cancel();
-    _hasSeenWelcome = false;
-    _characterName = '하띠';
-    notifyListeners();
+  void _onUserLogout() {
+    _initLocalState();
   }
 
   // ── 성장 단계 ──────────────────────────────────────────
@@ -319,6 +369,7 @@ class HattiService extends ChangeNotifier {
   LuckyCard drawCard() {
     final card = luckyCards[Random().nextInt(luckyCards.length)];
     _todayCard = card;
+    _saveLocalState();
     notifyListeners();
 
     // 백그라운드 데이터베이스 반영 (실패해도 무방)
@@ -373,10 +424,14 @@ class HattiService extends ChangeNotifier {
       history.removeRange(4, history.length);
     }
 
+    _saveLocalState();
     notifyListeners();
 
-    // 4) 비동기로 서버의 최신 상태 풀링해 최종 동기화
-    loadStateAndHistory();
+    // 4) 로그인 상태 시 비동기로 서버의 최신 상태 풀링해 최종 동기화
+    final user = Supabase.instance.client.auth.currentUser;
+    if (user != null) {
+      loadStateAndHistory();
+    }
 
     // 5) 마일스톤 메시지 판정
     final newStage = stage;

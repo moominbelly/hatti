@@ -151,9 +151,11 @@ class _LoginScreenState extends State<LoginScreen> {
           child: Center(
             child: SingleChildScrollView(
               padding: const EdgeInsets.symmetric(horizontal: 28.0),
-              child: Column(
-                mainAxisAlignment: MainAxisAlignment.center,
-                children: [
+              child: ConstrainedBox(
+                constraints: const BoxConstraints(maxWidth: 420),
+                child: Column(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
                   const SizedBox(height: 20),
                   // 캐릭터 노출 (숨쉬기 + 미소 연출)
                   const HattiCharacter(
@@ -340,8 +342,9 @@ class _LoginScreenState extends State<LoginScreen> {
           ),
         ),
       ),
-    );
-  }
+    ),
+  );
+}
 
   InputDecoration _buildInputDecoration({required String hint}) {
     return InputDecoration(

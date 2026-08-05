@@ -192,18 +192,26 @@ class _CheckinFlowScreenState extends State<CheckinFlowScreen> {
                   const SizedBox(height: 22),
                   Center(
                     child: Column(children: [
+                      SpeechBubble(r.empathy),
+                      const SizedBox(height: 12),
                       HattiCharacter(
                           tone: r.emotion.tone, mood: r.emotion, scale: 0.66),
-                      SpeechBubble(r.empathy),
+                      if (!_showCard) ...[
+                        const SizedBox(height: 24),
+                        ConstrainedBox(
+                          constraints: const BoxConstraints(maxWidth: 250),
+                          child: GhostButton(
+                            '하띠의 확언 카드 받기 ✉️',
+                            onPressed: () => setState(() => _showCard = true),
+                          ),
+                        ),
+                      ],
                     ]),
                   ),
-                  const Spacer(),
-                  const SizedBox(height: 20),
-                  if (!_showCard)
-                    GhostButton('하띠의 확언 카드 받기 ✉️',
-                        onPressed: () => setState(() => _showCard = true))
-                  else ...[
+                  if (_showCard) ...[
+                    const SizedBox(height: 24),
                     _AffirmationCard(r.affirmation),
+                    const Spacer(),
                     const SizedBox(height: 20),
                     PrimaryButton('체크인 마치기', onPressed: _finish),
                   ],

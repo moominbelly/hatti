@@ -173,3 +173,13 @@ LUCKY_CARDS = [
 CRISIS_KEYWORDS = [
     "죽고싶", "자살", "사라지고싶", "살기싫", "없어지고싶", "끝내고싶", "죽어버", "목숨",
 ]
+
+CRISIS_RESPONSE = {
+    "emotion": "sadness",
+    "intensity": 5,
+    "context_keyword": "위기 지원",
+    "empathy": "지금 많이 힘들고 고통스러운 마음이 느껴져요. 혼자 힘들어하지 마시고 전문 상담 기관의 도움을 받아보세요.",
+    "affirmation": "당신의 삶과 마음은 귀중합니다.",
+    "helpline": "자살예방 상담전화 109 / 정신건강 상담전화 1577-0199 (24시간 무료상담)",
+}
+

@@ -14,6 +14,7 @@ import '../widgets/emotion_face.dart';
 import '../widgets/hatti_character.dart';
 import 'checkin_flow.dart';
 import 'history_screen.dart';
+import 'settings_screen.dart';
 
 class HomeScreen extends StatelessWidget {
   const HomeScreen({super.key});
@@ -35,48 +36,15 @@ class HomeScreen extends StatelessWidget {
     }
   }
 
-  void _showLogoutDialog(BuildContext context) {
-    showDialog(
-      context: context,
-      builder: (ctx) => AlertDialog(
-        backgroundColor: const Color(0xFF2D1F35),
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
-        title: Text(
-          '로그아웃',
-          style: HattiText.body(size: 18, w: FontWeight.bold),
-        ),
-        content: Text(
-          '정말 로그아웃 하시겠습니까?',
-          style: HattiText.body(size: 15, color: HattiColors.creamDim),
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.of(ctx).pop(),
-            child: Text(
-              '아니요',
-              style: HattiText.body(size: 14, color: HattiColors.creamDim),
-            ),
-          ),
-          TextButton(
-            onPressed: () {
-              Navigator.of(ctx).pop();
-              context.read<AuthService>().logout();
-            },
-            child: Text(
-              '네',
-              style: HattiText.body(size: 14, color: HattiColors.coral, w: FontWeight.bold),
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-
   String _greeting(HattiService s) {
-    // 쓰다듬으면 그 반응이 인사말 자리를 잠시 차지한다
-    if (s.pettingLine != null) return s.pettingLine!;
-    if (s.isFirstTime) return Content.firstGreeting;
-    return s.isMorning ? Content.morningGreeting : Content.eveningGreeting;
+    final name = s.characterName.isNotEmpty ? s.characterName : '하띠';
+    if (s.pettingLine != null) {
+      return s.pettingLine!.replaceAll('하띠', name);
+    }
+    if (s.isFirstTime) return '안녕! 나는 $name(이)야.\n오늘 네 마음을 들려줄래?';
+    return s.isMorning
+        ? '좋은 아침이야! 나 $name(이)랑\n오늘 마음 한 번 들여다볼래?'
+        : '오늘 하루도 수고했어.\n나 $name(이)에게 네 마음을 들려줄래?';
   }
 
   Future<void> _pickWeather(BuildContext context) async {
@@ -155,16 +123,14 @@ class HomeScreen extends StatelessWidget {
       );
     }
 
-    // 새로 가입한 회원이고 웰컴 페이지를 보지 않은 경우 시작 페이지 노출
-    if (s.isFirstTime && !s.hasSeenWelcome) {
-      return _WelcomeOnboarding(service: s);
-    }
-
     return Scaffold(
       body: DuskBackground(
-        child: Padding(
-          padding: const EdgeInsets.fromLTRB(24, 20, 24, 30),
-          child: Column(
+        child: Center(
+          child: ConstrainedBox(
+            constraints: const BoxConstraints(maxWidth: 480),
+            child: Padding(
+              padding: const EdgeInsets.fromLTRB(24, 20, 24, 30),
+              child: Column(
             children: [
               // 상단 바
               Row(
@@ -184,6 +150,31 @@ class HomeScreen extends StatelessWidget {
                     ),
                     const SizedBox(width: 6),
                     _PeriodChip('${s.periodIcon} ${s.periodLabel}'),
+                    const SizedBox(width: 8),
+                    GestureDetector(
+                      onTap: () {
+                        Navigator.of(context).push(
+                          MaterialPageRoute(
+                            builder: (_) => const SettingsScreen(),
+                          ),
+                        );
+                      },
+                      child: Container(
+                        padding: const EdgeInsets.all(7),
+                        decoration: BoxDecoration(
+                          color: Colors.white.withValues(alpha: 0.12),
+                          shape: BoxShape.circle,
+                          border: Border.all(
+                            color: Colors.white.withValues(alpha: 0.18),
+                          ),
+                        ),
+                        child: const Icon(
+                          Icons.settings,
+                          size: 16,
+                          color: HattiColors.cream,
+                        ),
+                      ),
+                    ),
                   ]),
                 ],
               ),
@@ -192,6 +183,24 @@ class HomeScreen extends StatelessWidget {
                 child: Column(
                   mainAxisAlignment: MainAxisAlignment.center,
                   children: [
+                    // 캐릭터 위쪽에 말풍선 대화 노출 (고정된 높이 공간으로 캐릭터 위치 흔들림 방지)
+                    SizedBox(
+                      height: 80,
+                      child: Center(
+                        child: AnimatedSwitcher(
+                          duration: const Duration(milliseconds: 250),
+                          transitionBuilder: (child, anim) => ScaleTransition(
+                            scale: anim,
+                            child: FadeTransition(opacity: anim, child: child),
+                          ),
+                          child: SpeechBubble(
+                            _greeting(s),
+                            key: ValueKey(_greeting(s)),
+                          ),
+                        ),
+                      ),
+                    ),
+                    const SizedBox(height: 12),
                     _PettableHatti(
                       stage: s.stage,
                       onPet: () => s.pet(),
@@ -200,8 +209,6 @@ class HomeScreen extends StatelessWidget {
                     Text('Lv.${s.stage} · ${s.stageName}',
                         style: HattiText.body(
                             size: 12.5, color: HattiColors.creamDim)),
-                    const SizedBox(height: 12),
-                    SpeechBubble(_greeting(s)),
                     if (s.canDrawCard || s.todayCard != null) ...[
                       const SizedBox(height: 16),
                       _CardSlot(
@@ -247,27 +254,13 @@ class HomeScreen extends StatelessWidget {
               ),
               PrimaryButton('체크인 시작하기',
                   onPressed: () => _startCheckin(context)),
-              const SizedBox(height: 16),
-              TextButton(
-                onPressed: () => _showLogoutDialog(context),
-                style: TextButton.styleFrom(
-                  minimumSize: Size.zero,
-                  padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-                  tapTargetSize: MaterialTapTargetSize.shrinkWrap,
-                ),
-                child: Text(
-                  '로그아웃',
-                  style: HattiText.body(size: 13, color: HattiColors.creamFaint).copyWith(
-                    decoration: TextDecoration.underline,
-                    decorationColor: HattiColors.creamFaint,
-                  ),
-                ),
-              ),
             ],
           ),
         ),
       ),
-    );
+    ),
+  ),
+);
   }
 }
 
@@ -462,111 +455,4 @@ class _PettableHattiState extends State<_PettableHatti>
   }
 }
 
-class _WelcomeOnboarding extends StatefulWidget {
-  final HattiService service;
-  const _WelcomeOnboarding({required this.service});
 
-  @override
-  State<_WelcomeOnboarding> createState() => _WelcomeOnboardingState();
-}
-
-class _WelcomeOnboardingState extends State<_WelcomeOnboarding> {
-  int _step = 0; // 0: welcome speech bubbles, 1: naming character
-  final _nameCtrl = TextEditingController();
-
-  @override
-  void dispose() {
-    _nameCtrl.dispose();
-    super.dispose();
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    return Scaffold(
-      body: DuskBackground(
-        child: Padding(
-          padding: const EdgeInsets.fromLTRB(24, 40, 24, 30),
-          child: Column(
-            children: [
-              const Spacer(flex: 2),
-              // 캐릭터 상단 배치 (새싹하띠 stage 1)
-              const HattiCharacter(stage: 1, scale: 1.3),
-              const SizedBox(height: 32),
-              if (_step == 0) ...[
-                // 첫 번째 투명 대화 상자 (줄바꿈 반영)
-                const SpeechBubble(
-                  '안녕! 나는 네 마음을\n함께 들여다볼 하띠야.',
-                  fontSize: 18,
-                ),
-                const SizedBox(height: 16),
-                
-                // 두 번째 투명 대화 상자 (줄바꿈 반영)
-                const SpeechBubble(
-                  '매일 마음을 들려주면,\n내가 곁에서 들을게. 그거면 돼.',
-                  fontSize: 18,
-                ),
-                const Spacer(flex: 3),
-                
-                // 좋아 시작할래 버튼
-                PrimaryButton(
-                  '좋아, 시작할래',
-                  onPressed: () {
-                    setState(() => _step = 1);
-                  },
-                ),
-              ] else ...[
-                // 캐릭터 바로 아래 문구
-                Text(
-                  '이 아이에게\n이름을 지어줄래?',
-                  textAlign: TextAlign.center,
-                  style: HattiText.body(size: 22, w: FontWeight.bold),
-                ),
-                const SizedBox(height: 24),
-                
-                // 닉네임 입력 칸
-                TextField(
-                  controller: _nameCtrl,
-                  style: HattiText.body(color: HattiColors.ink),
-                  textAlign: TextAlign.center,
-                  maxLength: 12,
-                  buildCounter: (_, {required currentLength, required isFocused, maxLength}) => null,
-                  decoration: InputDecoration(
-                    hintText: '이름을 입력해줘',
-                    hintStyle: HattiText.body(color: HattiColors.ink.withValues(alpha: 0.5)),
-                    filled: true,
-                    fillColor: HattiColors.paper,
-                    contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
-                    border: OutlineInputBorder(
-                      borderRadius: BorderRadius.circular(14),
-                      borderSide: BorderSide.none,
-                    ),
-                  ),
-                ),
-                const SizedBox(height: 8),
-                
-                // "나중에 바꿀 수도 있어" 글귀
-                Text(
-                  '나중에 바꿀 수도 있어',
-                  style: HattiText.body(size: 13, color: HattiColors.creamDim),
-                ),
-                const Spacer(flex: 3),
-                
-                // 시작하기 버튼
-                PrimaryButton(
-                  '시작하기',
-                  onPressed: () async {
-                    final name = _nameCtrl.text.trim();
-                    if (name.isNotEmpty) {
-                      await widget.service.updateCharacterName(name);
-                    }
-                    await widget.service.completeWelcome();
-                  },
-                ),
-              ],
-            ],
-          ),
-        ),
-      ),
-    );
-  }
-}
